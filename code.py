@@ -29,6 +29,19 @@ location = Location("location", 9)
 # ------------------------------------------
 
 # Add project code in "main"
+# bitmasks
+north = 0x01
+east = 0x02
+south = 0x04
+west = 0x08
+visited = 0x10
+start = 0x20
+end = 0x40
+# dead end bitmasks
+new = north|east|west
+nes = north|east|south
+esw = east|south|west
+nsw = north|south|west
 def advanced():
     pen.move(DOWN)
     pen.set_pen_color(BLUE)
@@ -39,23 +52,11 @@ def advanced():
     # Create 8x8 matrix
     array_8 = [[0 for _ in range(8)] for _ in range(8)]
     first_run = True
-    north = 0x01
-    east = 0x02
-    south = 0x04
-    west = 0x08
-    visited = 0x10
-    start = 0x20
-    end = 0x40
-    # dead end bitmasks 
-    new = north|east|west
-    nes = north|east|south
-    esw = east|south|west
-    nsw = north|south|west
     passes = 0 # passes over start pos
     pathtoend = [[]]
     reachedend = False
     while passes <= 3: # loop only 3 times just in case it takes too long
-        wait(100, MSEC)
+        wait(100, MSEC) # prevent vex vr code from breaking
         walls = 0
         newpos = positionToMatrixIndex(location.position(X,MM),location.position(Y,MM)) # translate mm to index
         inital_heading = drivetrain.heading(DEGREES)
@@ -76,6 +77,7 @@ def advanced():
                     brain.print("breaking")
                     break
                 visit_count = 0
+                # count visited cells
                 for x in range(len(array_8)):
                     for y in range(len(array_8[0])):
                         if array_8[x][y] & visited:
@@ -108,7 +110,6 @@ def advanced():
         if down_eye.detect(RED) and newpos[1] == 7: # Y must be 7 which is where the end always is
             brain.print("reached end")
             walls = walls | north # mark above finish as wall
-        
         #
         # dead end logic
         #
@@ -158,8 +159,11 @@ def advanced():
         # end position, prevent falling off
         if array_8[newpos[0]][newpos[1]] & end and front_distance.get_distance(MM) > 2000 and newpos[1] == 7:
             drivetrain.turn_for(RIGHT,90,DEGREES)
+        #
+        # Store the heading in path to end
+        #
         if drivetrain.heading(DEGREES) == 0 and not reachedend: # north
-            if len(pathtoend) > 0:
+            if len(pathtoend) > 1:
                 t = pathtoend[-1]
                 if len(t) > 1:
                     if t[0] == newpos[0] and t[1] == newpos[1]:
@@ -177,7 +181,7 @@ def advanced():
                 if not deadend:
                     pathtoend.append([newpos[0],newpos[1],east])
         if drivetrain.heading(DEGREES) == 180 and not reachedend: # south
-            if len(pathtoend) > 0:
+            if len(pathtoend) > 1:
                 t = pathtoend[-1]
                 if len(t) > 1:
                     if t[0] == newpos[0] and t[1] == newpos[1]:
@@ -186,7 +190,7 @@ def advanced():
                 if not deadend:
                     pathtoend.append([newpos[0],newpos[1],south])
         if drivetrain.heading(DEGREES) == 270 and not reachedend: # west
-            if len(pathtoend) > 0:
+            if len(pathtoend) > 1:
                 t = pathtoend[-1]
                 if len(t) > 1:
                     if t[0] == newpos[0] and t[1] == newpos[1]:
@@ -194,7 +198,7 @@ def advanced():
             else:
                 if not deadend and not walls & start:
                     pathtoend.append([newpos[0],newpos[1],west])
-
+        # move forward
         drivetrain.drive_for(FORWARD,250,MM)
     print_maze(array_8)
     brain.new_line()
@@ -212,14 +216,6 @@ def print_path(pte):
             brain.print("south")
 
 def print_maze(maze):
-    # bitmasks
-    north = 0x01
-    east = 0x02
-    south = 0x04
-    west = 0x08
-    visited = 0x10
-    start = 0x20
-    end = 0x40
     brain.new_line()
     h, w = len(maze), len(maze[0]) # height and width of maze
     # start from 7 and decrement
@@ -264,19 +260,6 @@ def print_maze(maze):
     brain.new_line()
 
 def PathFind(maze):
-    # bitmasks
-    north = 0x01
-    east = 0x02
-    south = 0x04
-    west = 0x08
-    visited = 0x10
-    start = 0x20
-    end = 0x40
-    # dead end bitmasks
-    new = north|east|west
-    nes = north|east|south
-    esw = east|south|west
-    nsw = north|south|west
     brain.new_line()
     h, w = len(maze), len(maze[0]) # height and width of maze
     startpos = [0,0]
@@ -285,7 +268,7 @@ def PathFind(maze):
             if maze[x][y] & start: # find start
                 startpos = [x,y]
                 break
-    if not maze[x][y] & west:
+    if not maze[x][y] & west: # traverse west of startpos
         brain.print("fp west")
         F, P = Traverse(maze,startpos, west)
         if F:
@@ -300,7 +283,7 @@ def PathFind(maze):
                     brain.print("east")
                 if P[i] == south:
                     brain.print("south")
-    if not maze[x][y] & east:
+    if not maze[x][y] & east: # traverse east of startpos
         brain.print("fp east")
         F, P = Traverse(maze,startpos, east)
         if F:
@@ -315,7 +298,7 @@ def PathFind(maze):
                     brain.print("east")
                 if P[i] == south:
                     brain.print("south")
-    if not maze[x][y] & north:
+    if not maze[x][y] & north: # traverse north of startpos
         brain.print("fp north")
         F, P = Traverse(maze,startpos, north)
         if F:
@@ -330,24 +313,12 @@ def PathFind(maze):
                     brain.print("east")
                 if P[i] == south:
                     brain.print("south")
+    # no south traversal as start position is always a wall on south
 
 def Traverse(maze,pos,direction):
-    # bitmasks
-    north = 0x01
-    east = 0x02
-    south = 0x04
-    west = 0x08
-    visited = 0x10
-    start = 0x20
-    end = 0x40
-    # dead end bitmasks
-    new = north|east|west
-    nes = north|east|south
-    esw = east|south|west
-    nsw = north|south|west
     path = []
     for i in range(1000):
-        wait(70,MSEC)
+        wait(70,MSEC) # so we don't break vex vr online interpreter
         if maze[pos[0]][pos[1]] & end: # return if we reach end
             brain.print("reached end path")
             return True, path
@@ -359,17 +330,15 @@ def Traverse(maze,pos,direction):
                 brain.print(pos[0])
                 brain.print(pos[1])
                 return False, None
-        if not maze[pos[0]][pos[1]] & direction:
+        if not maze[pos[0]][pos[1]] & direction: # traverse in intended direction
             brain.print("traversing in direction")
             pos = MovePos(pos,direction)
             path.append(direction)
         # junctions
         else:
-            if len(path) > 0:
+            if len(path) > 0: # if we've headed in a direction we do not want to go back on ourselves
                 if path[-1] == north or path[-1] == south: # if path direction is going north
                     if not maze[pos[0]][pos[1]] & west: # go west if we can
-                        #pos = MovePos(pos,west)
-                        #path.append(west)
                         F,P = Traverse(maze,pos,west)
                         brain.print("traversing west")
                         if F:
@@ -381,11 +350,7 @@ def Traverse(maze,pos,direction):
                             brain.print(pos[0])
                             brain.print(pos[1])
                             brain.new_line()
-                            #if len(path) > 0:
-                            #    path.pop()
                     if not maze[pos[0]][pos[1]] & east: # go east if we can
-                        #pos = MovePos(pos,east)
-                        #path.append(east)
                         F,P = Traverse(maze,pos,east)
                         brain.print("traversing east")
                         if F:
@@ -397,12 +362,8 @@ def Traverse(maze,pos,direction):
                             brain.print(pos[0])
                             brain.print(pos[1])
                             brain.new_line()
-                            #if len(path) > 0:
-                            #    path.pop()
                 if path[-1] == west or path[-1] == east: # if path direction is going west/east
                     if not maze[pos[0]][pos[1]] & north: # go north if we can
-                        #pos = MovePos(pos,north)
-                        #path.append(north)
                         F,P = Traverse(maze,pos,north)
                         brain.print("traversing north")
                         if F:
@@ -414,11 +375,7 @@ def Traverse(maze,pos,direction):
                             brain.print(pos[0])
                             brain.print(pos[1])
                             brain.new_line()
-                            #if len(path) > 0:
-                            #    path.pop()
                     if not maze[pos[0]][pos[1]] & south: # go south if we can
-                        #pos = MovePos(pos,south)
-                        #path.append(south)
                         F,P = Traverse(maze,pos,south)
                         brain.print("traversing south")
                         if F:
@@ -430,13 +387,8 @@ def Traverse(maze,pos,direction):
                             brain.print(pos[0])
                             brain.print(pos[1])
                             brain.new_line()
-                            #if len(path) > 0:
-                            #    path.pop()
-
-        #if not maze[pos[0]][pos[1]] & new or not maze[pos[0]][pos[1]] & nes or not maze[pos[0]][pos[1]] & esw or not maze[pos[0]][pos[1]] & nsw:
+        # if we can go north and we're not going north, traverse there
         if not maze[pos[0]][pos[1]] & north and direction != north: # ignore if we are going north
-            #pos = MovePos(pos,north)
-            #path.append(north)
             F,P = Traverse(maze,pos,north)
             brain.print("traversing north")
             if F:
@@ -448,11 +400,8 @@ def Traverse(maze,pos,direction):
                 brain.print(pos[0])
                 brain.print(pos[1])
                 brain.new_line()
-                #if len(path) > 0:
-                #    path.pop()
+        # if we can go east and we're not going east, traverse there
         if not maze[pos[0]][pos[1]] & east and direction != east: # ignore if we are going east
-            #pos = MovePos(pos,east)
-            #path.append(east)
             F,P = Traverse(maze,pos,east)
             brain.print("traversing east")
             if F:
@@ -464,11 +413,8 @@ def Traverse(maze,pos,direction):
                 brain.print(pos[0])
                 brain.print(pos[1])
                 brain.new_line()
-                #if len(path) > 0:
-                #    path.pop()
+        # if we can go south and we're not going south, traverse there
         if not maze[pos[0]][pos[1]] & south and direction != south: # ignore if we are going south
-            #pos = MovePos(pos,south)
-            #path.append(south)
             F,P = Traverse(maze,pos,south)
             brain.print("traversing south")
             if F:
@@ -480,11 +426,8 @@ def Traverse(maze,pos,direction):
                 brain.print(pos[0])
                 brain.print(pos[1])
                 brain.new_line()
-                #if len(path) > 0:
-                #    path.pop()
+        # if we can go west and we're not going west, traverse there
         if not maze[pos[0]][pos[1]] & west and direction != west: # ignore if we are going west
-            #pos = MovePos(pos,west)
-            #path.append(west)
             F,P = Traverse(maze,pos,west)
             brain.print("traversing west")
             if F:
@@ -496,47 +439,9 @@ def Traverse(maze,pos,direction):
                 brain.print(pos[0])
                 brain.print(pos[1])
                 brain.new_line()
-                #if len(path) > 0:
-                #    path.pop()
-    return False,None
-"""       if not maze[pos[0]][pos[1]] & new: # north east west junction
-            if not maze[pos[0]][pos[1]] & north: # go north
-                pos = MovePos(pos,north)
-                path.append(north)
-                F,P = Traverse(maze,pos,north)
-                if F:
-                    path.append(P)
-                    return True, path
-                else:
-                    if len(path) > 0:
-                        path.pop()
-            if not maze[pos[0]][pos[1]] & east: # go east
-                pos = MovePos(pos,east)
-                path.append(east)
-                F,P = Traverse(maze,pos,east)
-                if F:
-                    path.append(P)
-                    return True, path
-                else:
-                    if len(path) > 0:
-                        path.pop()
-            if not maze[pos[0]][pos[1]] & south: # go west
-                pos = MovePos(pos,west)
-                path.append(west)
-                F,P = Traverse(maze,pos,west)
-                if F:
-                    path.append(P)
-                    return True, path
-                else:
-                    if len(path) > 0:
-                        path.pop()  """              
+    return False,None # return nothing when we escape the loop    
 
 def MovePos(pos,direction):
-    # bitmasks
-    north = 0x01
-    east = 0x02
-    south = 0x04
-    west = 0x08
     if direction == west:
         pos[0] -= 1
         return pos
